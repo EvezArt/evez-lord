@@ -10,6 +10,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Append revenue event to spine
         run: |
@@ -18,13 +20,11 @@ jobs:
           TIMESTAMP=$(echo "$EVENT" | jq -r '.timestamp // now')
           HASH=$(echo "$EVENT" | sha256sum | cut -d' ' -f1)
           
-          # Get previous hash for chain
           PREV_HASH="genesis"
           if [ -f spine/revenue/spine.jsonl ]; then
             PREV_HASH=$(tail -1 spine/revenue/spine.jsonl | jq -r '.hash // "genesis"')
           fi
           
-          # Build chained event
           CHAINED=$(echo "$EVENT" | jq --arg ph "$PREV_HASH" --arg h "$HASH" \
             '. + {predecessor: $ph, hash: $h}')
           
@@ -38,3 +38,8 @@ jobs:
           git add spine/revenue/spine.jsonl
           git diff --staged --quiet || git commit -m "spine: revenue bridge event [auto]"
           git push
+
+      - name: Verify
+        run: |
+          echo "Spine events:"
+          cat spine/revenue/spine.jsonl | jq -c '{hash: .hash, predecessor: .predecessor}'
